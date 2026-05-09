@@ -57,7 +57,7 @@ export function setupSocketHandlers(io) {
       // New player → auto-assign first free slot
       slotNum = findFreeSlot();
       if (!slotNum) {
-        socket.emit('join_error', { message: 'Alle Plätze sind belegt (max. 6).' });
+        socket.emit('join_error', { message: 'Alle Plätze sind belegt (max. 4).' });
         return;
       }
 
@@ -182,7 +182,7 @@ export function setupSocketHandlers(io) {
       });
 
       // Clear drawings
-      for (let i = 1; i <= 6; i++) {
+      for (let i = 1; i <= 4; i++) {
         const slot = state.slots[String(i)];
         if (slot) updateSlot(i, { ...slot, drawing: null, submitted: false });
       }
@@ -277,6 +277,11 @@ export function setupSocketHandlers(io) {
 
     socket.on('admin_reset_scores', () => {
       updateState({ scores: {} });
+      broadcast();
+    });
+
+    socket.on('admin_set_host_vdo', ({ vdoId }) => {
+      updateState({ hostVdoId: vdoId ? vdoId.trim() : null });
       broadcast();
     });
 

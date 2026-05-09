@@ -117,9 +117,9 @@ export default function Lobby() {
           )}
         </AnimatePresence>
 
-        {/* 6 Slots grid */}
-        <div className="grid grid-cols-2 gap-4 w-full max-w-2xl sm:grid-cols-3">
-          {Array.from({ length: 6 }, (_, i) => i + 1).map((slotNum) => {
+        {/* 4 Slots grid */}
+        <div className="grid grid-cols-2 gap-4 w-full max-w-xl">
+          {Array.from({ length: 4 }, (_, i) => i + 1).map((slotNum) => {
             const slot: SlotData | null = gameState?.slots[String(slotNum)] ?? null;
             const isMe = twitchUser && slot?.twitchId === twitchUser.id;
             const isMySlot = mySlot === String(slotNum);

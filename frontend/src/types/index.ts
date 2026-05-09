@@ -30,6 +30,7 @@ export interface Round {
 export interface GameState {
   phase: Phase;
   slots: Record<string, SlotData | null>;
+  hostVdoId: string | null;
   round: Round;
   scores: Record<string, number>;
   whitelist: string[];

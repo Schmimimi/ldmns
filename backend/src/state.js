@@ -4,13 +4,14 @@ const STATE_FILE = './game-state.json';
 
 const initSlots = () => {
   const s = {};
-  for (let i = 1; i <= 6; i++) s[String(i)] = null;
+  for (let i = 1; i <= 4; i++) s[String(i)] = null;
   return s;
 };
 
 const defaultState = {
   phase: 'LOBBY',
   slots: initSlots(),
+  hostVdoId: null,
   round: {
     taskA: '',
     taskB: '',
@@ -28,8 +29,13 @@ let state = JSON.parse(JSON.stringify(defaultState));
 if (fs.existsSync(STATE_FILE)) {
   try {
     const loaded = JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'));
-    state = loaded;
-    // Mark all players as disconnected after restart
+    // Migrate: if loaded has 5/6 slots, trim to 4
+    state = { ...defaultState, ...loaded };
+    // Ensure exactly 4 slots
+    const slots = {};
+    for (let i = 1; i <= 4; i++) slots[String(i)] = loaded.slots?.[String(i)] ?? null;
+    state.slots = slots;
+    // Mark all players disconnected after restart
     for (const k of Object.keys(state.slots)) {
       if (state.slots[k]) {
         state.slots[k].connected = false;
@@ -49,9 +55,7 @@ function save() {
   }
 }
 
-export function getState() {
-  return state;
-}
+export function getState() { return state; }
 
 export function updateState(updates) {
   Object.assign(state, updates);
@@ -72,7 +76,7 @@ export function findSlotByTwitchId(twitchId) {
 }
 
 export function findFreeSlot() {
-  for (let i = 1; i <= 6; i++) {
+  for (let i = 1; i <= 4; i++) {
     if (!state.slots[String(i)]) return i;
   }
   return null;

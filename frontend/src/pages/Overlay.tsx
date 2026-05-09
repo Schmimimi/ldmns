@@ -7,6 +7,12 @@ import type { SlotData } from '../types';
 const VDO_BASE = 'https://vdo.ninja';
 const VDO_PARAMS = '&noaudio&width=1280&height=720&framerate=30';
 
+// Camera bar height for 4 players (bigger than before)
+const CAM_BAR_HEIGHT = 320;
+// Host cam dimensions (top-left)
+const HOST_CAM_W = 320;
+const HOST_CAM_H = 220;
+
 export default function Overlay() {
   useOverlaySocket();
   const { gameState } = useStore();
@@ -17,6 +23,7 @@ export default function Overlay() {
   const round = gameState?.round;
   const scores = gameState?.scores || {};
   const revealedSlots = round?.revealedSlots || [];
+  const hostVdoId = gameState?.hostVdoId || null;
 
   // Timer countdown
   useEffect(() => {
@@ -28,10 +35,14 @@ export default function Overlay() {
     return () => clearInterval(id);
   }, [round?.timerEnd]);
 
-  const slotEntries = Array.from({ length: 6 }, (_, i) => ({
+  const slotEntries = Array.from({ length: 4 }, (_, i) => ({
     num: i + 1,
     slot: (slots[String(i + 1)] as SlotData | null) ?? null,
   }));
+
+  const hostVdoUrl = hostVdoId
+    ? `${VDO_BASE}/?view=${encodeURIComponent(hostVdoId)}${VDO_PARAMS}`
+    : null;
 
   return (
     <div
@@ -61,7 +72,7 @@ export default function Overlay() {
         style={{
           position: 'absolute',
           top: 0, left: 0, right: 0,
-          bottom: '270px',
+          bottom: `${CAM_BAR_HEIGHT}px`,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -98,15 +109,15 @@ export default function Overlay() {
               background: 'rgba(10,10,15,0.9)',
               backdropFilter: 'blur(20px)',
               border: `1px solid ${timeLeft <= 10 ? 'rgba(239,68,68,0.6)' : 'rgba(245,158,11,0.4)'}`,
-              borderRadius: '16px',
-              padding: '10px 32px',
+              borderRadius: '20px',
+              padding: '12px 40px',
               boxShadow: timeLeft <= 10 ? '0 0 40px rgba(239,68,68,0.3)' : '0 0 20px rgba(245,158,11,0.2)',
             }}
           >
             <span
               style={{
                 fontFamily: "'Bebas Neue'",
-                fontSize: '3.5rem',
+                fontSize: '5rem',
                 letterSpacing: '0.1em',
                 color: timeLeft <= 10 ? '#EF4444' : '#F59E0B',
                 lineHeight: 1,
@@ -120,13 +131,63 @@ export default function Overlay() {
       </AnimatePresence>
 
       {/* ==================== */}
+      {/* HOST CAM – TOP LEFT  */}
+      {/* ==================== */}
+      {hostVdoUrl && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 20,
+            left: 20,
+            width: `${HOST_CAM_W}px`,
+            height: `${HOST_CAM_H}px`,
+            borderRadius: '14px',
+            overflow: 'hidden',
+            background: '#000',
+            border: '2px solid rgba(124,58,237,0.6)',
+            boxShadow: '0 0 30px rgba(124,58,237,0.25), 0 8px 32px rgba(0,0,0,0.6)',
+          }}
+        >
+          <iframe
+            src={hostVdoUrl}
+            allow="camera;microphone;fullscreen;picture-in-picture;display-capture"
+            style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+          />
+          {/* Host label */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 0, left: 0, right: 0,
+              background: 'linear-gradient(transparent, rgba(0,0,0,0.85))',
+              padding: '20px 10px 8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10B981', flexShrink: 0 }} />
+            <span
+              style={{
+                fontFamily: "'Bebas Neue'",
+                fontSize: '1.2rem',
+                color: 'white',
+                letterSpacing: '0.1em',
+              }}
+            >
+              HOST
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== */}
       {/* CAMERA BAR - BOTTOM  */}
       {/* ==================== */}
       <div
         style={{
           position: 'absolute',
           bottom: 0, left: 0, right: 0,
-          height: '270px',
+          height: `${CAM_BAR_HEIGHT}px`,
           display: 'flex',
         }}
       >
@@ -159,18 +220,18 @@ function LobbyDisplay({ slotEntries, scores }: { slotEntries: any[]; scores: Rec
         animate={{ opacity: 1, y: 0 }}
         style={{
           fontFamily: "'Bebas Neue'",
-          fontSize: '6rem',
+          fontSize: '7.5rem',
           letterSpacing: '0.1em',
           background: 'linear-gradient(135deg, #EF4444, #EC4899, #7C3AED)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
-          marginBottom: '8px',
+          marginBottom: '10px',
           lineHeight: 1,
         }}
       >
         LÜGEN DARF MAN NICHT SAGEN!
       </motion.div>
-      <div style={{ fontSize: '1.2rem', color: '#6B7280', letterSpacing: '0.3em', textTransform: 'uppercase' }}>
+      <div style={{ fontSize: '1.6rem', color: '#6B7280', letterSpacing: '0.3em', textTransform: 'uppercase' }}>
         Warte auf Start · Schmilley Games
       </div>
     </motion.div>
@@ -193,10 +254,10 @@ function DrawingDisplay({ timeLeft, slotEntries }: { timeLeft: number | null; sl
       <div
         style={{
           fontFamily: "'Bebas Neue'",
-          fontSize: '4rem',
+          fontSize: '5.5rem',
           letterSpacing: '0.2em',
           color: '#7C3AED',
-          marginBottom: '16px',
+          marginBottom: '20px',
         }}
       >
         ALLE ZEICHNEN...
@@ -206,9 +267,9 @@ function DrawingDisplay({ timeLeft, slotEntries }: { timeLeft: number | null; sl
       <div
         style={{
           display: 'flex',
-          gap: '12px',
+          gap: '16px',
           justifyContent: 'center',
-          marginBottom: '24px',
+          marginBottom: '28px',
         }}
       >
         {slotEntries.filter(e => e.slot).map(({ num, slot }) => (
@@ -216,17 +277,17 @@ function DrawingDisplay({ timeLeft, slotEntries }: { timeLeft: number | null; sl
             key={num}
             animate={slot.submitted ? { scale: [1, 1.2, 1] } : {}}
             style={{
-              width: '48px',
-              height: '48px',
+              width: '64px',
+              height: '64px',
               borderRadius: '50%',
-              border: `2px solid ${slot.submitted ? '#10B981' : 'rgba(255,255,255,0.15)'}`,
+              border: `3px solid ${slot.submitted ? '#10B981' : 'rgba(255,255,255,0.15)'}`,
               background: slot.submitted ? 'rgba(16,185,129,0.2)' : 'transparent',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: slot.submitted ? '20px' : '0',
+              fontSize: slot.submitted ? '28px' : '0',
               transition: 'all 0.4s',
-              boxShadow: slot.submitted ? '0 0 16px rgba(16,185,129,0.5)' : 'none',
+              boxShadow: slot.submitted ? '0 0 20px rgba(16,185,129,0.5)' : 'none',
             }}
           >
             {slot.submitted ? '✓' : ''}
@@ -234,7 +295,7 @@ function DrawingDisplay({ timeLeft, slotEntries }: { timeLeft: number | null; sl
         ))}
       </div>
 
-      <div style={{ color: '#6B7280', fontSize: '1rem', letterSpacing: '0.2em' }}>
+      <div style={{ color: '#6B7280', fontSize: '1.4rem', letterSpacing: '0.2em' }}>
         {submitted} / {total} abgegeben
       </div>
     </motion.div>
@@ -253,7 +314,9 @@ function RevealDisplay({
   revealedSlots: number[];
   round: any;
 }) {
-  const revealed = slotEntries.filter(({ num }) => revealedSlots.includes(num) && slotEntries.find(e => e.num === num)?.slot?.drawing);
+  const revealed = slotEntries.filter(({ num }) =>
+    revealedSlots.includes(num) && slotEntries.find(e => e.num === num)?.slot?.drawing
+  );
 
   return (
     <div style={{ width: '100%', paddingLeft: '40px', paddingRight: '40px' }}>
@@ -263,7 +326,7 @@ function RevealDisplay({
           animate={{ opacity: 1 }}
           style={{
             fontFamily: "'Bebas Neue'",
-            fontSize: '4rem',
+            fontSize: '5.5rem',
             letterSpacing: '0.3em',
             color: 'rgba(255,255,255,0.2)',
             textAlign: 'center',
@@ -275,7 +338,7 @@ function RevealDisplay({
         <div
           style={{
             display: 'flex',
-            gap: '16px',
+            gap: '20px',
             justifyContent: 'center',
             flexWrap: 'wrap',
           }}
@@ -291,11 +354,11 @@ function RevealDisplay({
                 style={{
                   background: 'rgba(10,10,15,0.95)',
                   backdropFilter: 'blur(20px)',
-                  border: '1px solid rgba(245,158,11,0.4)',
-                  borderRadius: '16px',
+                  border: '2px solid rgba(245,158,11,0.4)',
+                  borderRadius: '18px',
                   overflow: 'hidden',
-                  boxShadow: '0 0 40px rgba(245,158,11,0.2), 0 20px 60px rgba(0,0,0,0.6)',
-                  width: revealed.length <= 3 ? '320px' : '240px',
+                  boxShadow: '0 0 50px rgba(245,158,11,0.2), 0 20px 60px rgba(0,0,0,0.6)',
+                  width: revealed.length <= 2 ? '420px' : revealed.length === 3 ? '360px' : '300px',
                 }}
               >
                 <img
@@ -304,25 +367,25 @@ function RevealDisplay({
                 />
                 <div
                   style={{
-                    padding: '10px 14px',
+                    padding: '14px 18px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
+                    gap: '10px',
                     background: 'rgba(0,0,0,0.4)',
                   }}
                 >
                   <div
                     style={{
                       fontFamily: "'Bebas Neue'",
-                      fontSize: '1.4rem',
+                      fontSize: '1.8rem',
                       color: '#F59E0B',
                       letterSpacing: '0.05em',
                     }}
                   >
                     {num}
                   </div>
-                  <img src={slot.profileImageUrl} style={{ width: '28px', height: '28px', borderRadius: '50%' }} />
-                  <span style={{ fontSize: '14px', color: '#E5E7EB', flex: 1, fontWeight: 600 }}>
+                  <img src={slot.profileImageUrl} style={{ width: '34px', height: '34px', borderRadius: '50%' }} />
+                  <span style={{ fontSize: '17px', color: '#E5E7EB', flex: 1, fontWeight: 600 }}>
                     {slot.displayName}
                   </span>
                 </div>
@@ -347,17 +410,17 @@ function ScoringDisplay({ slotEntries, scores }: { slotEntries: any[]; scores: R
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '600px' }}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', width: '720px' }}
     >
       <div
         style={{
           fontFamily: "'Bebas Neue'",
-          fontSize: '4rem',
+          fontSize: '5rem',
           letterSpacing: '0.3em',
           background: 'linear-gradient(135deg, #F59E0B, #F97316)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
-          marginBottom: '8px',
+          marginBottom: '10px',
         }}
       >
         SCOREBOARD
@@ -373,31 +436,31 @@ function ScoringDisplay({ slotEntries, scores }: { slotEntries: any[]; scores: R
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '16px',
+            gap: '20px',
             background: 'rgba(10,10,15,0.9)',
             backdropFilter: 'blur(20px)',
-            border: i === 0 ? '1px solid rgba(245,158,11,0.5)' : '1px solid rgba(255,255,255,0.07)',
-            borderRadius: '14px',
-            padding: '12px 20px',
+            border: i === 0 ? '2px solid rgba(245,158,11,0.5)' : '1px solid rgba(255,255,255,0.07)',
+            borderRadius: '16px',
+            padding: '16px 24px',
             width: '100%',
-            boxShadow: i === 0 ? '0 0 30px rgba(245,158,11,0.2)' : 'none',
+            boxShadow: i === 0 ? '0 0 40px rgba(245,158,11,0.2)' : 'none',
           }}
         >
           <span
             style={{
               fontFamily: "'Bebas Neue'",
-              fontSize: '2rem',
+              fontSize: '2.5rem',
               color: i === 0 ? '#F59E0B' : 'rgba(255,255,255,0.2)',
-              width: '40px',
+              width: '48px',
             }}
           >
             {i + 1}
           </span>
           <img
             src={slot.profileImageUrl}
-            style={{ width: '48px', height: '48px', borderRadius: '50%', border: '2px solid rgba(124,58,237,0.5)' }}
+            style={{ width: '58px', height: '58px', borderRadius: '50%', border: '2px solid rgba(124,58,237,0.5)' }}
           />
-          <span style={{ flex: 1, fontSize: '20px', fontWeight: 600, color: 'white' }}>
+          <span style={{ flex: 1, fontSize: '24px', fontWeight: 600, color: 'white' }}>
             {slot.displayName}
             {i === 0 && ' 👑'}
           </span>
@@ -406,7 +469,7 @@ function ScoringDisplay({ slotEntries, scores }: { slotEntries: any[]; scores: R
             animate={{ scale: [1, 1.3, 1] }}
             style={{
               fontFamily: "'Bebas Neue'",
-              fontSize: '2.5rem',
+              fontSize: '3rem',
               background: 'linear-gradient(135deg, #F59E0B, #F97316)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
@@ -447,8 +510,8 @@ function CameraSlot({
         height: '100%',
         position: 'relative',
         background: '#000',
-        borderTop: isActive ? '2px solid rgba(124,58,237,0.7)' : '2px solid rgba(255,255,255,0.04)',
-        borderLeft: slotNum > 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+        borderTop: isActive ? '3px solid rgba(124,58,237,0.7)' : '3px solid rgba(255,255,255,0.04)',
+        borderLeft: slotNum > 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
         transition: 'border-color 0.3s',
         overflow: 'hidden',
       }}
@@ -470,19 +533,19 @@ function CameraSlot({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '8px',
+            gap: '10px',
           }}
         >
           {slot?.profileImageUrl ? (
             <img
               src={slot.profileImageUrl}
-              style={{ width: '64px', height: '64px', borderRadius: '50%', opacity: slot.connected ? 0.7 : 0.3 }}
+              style={{ width: '80px', height: '80px', borderRadius: '50%', opacity: slot.connected ? 0.7 : 0.3 }}
             />
           ) : (
-            <div style={{ color: '#333', fontSize: '28px' }}>📷</div>
+            <div style={{ color: '#333', fontSize: '36px' }}>📷</div>
           )}
           {!slot?.vdoId && slot && (
-            <div style={{ color: '#333', fontSize: '11px' }}>Kein VDO Link</div>
+            <div style={{ color: '#333', fontSize: '13px' }}>Kein VDO Link</div>
           )}
         </div>
       )}
@@ -491,13 +554,13 @@ function CameraSlot({
       <div
         style={{
           position: 'absolute',
-          top: '8px',
-          left: '8px',
+          top: '10px',
+          left: '10px',
           fontFamily: "'Bebas Neue'",
-          fontSize: '1.4rem',
-          color: 'rgba(255,255,255,0.3)',
+          fontSize: '1.8rem',
+          color: 'rgba(255,255,255,0.35)',
           lineHeight: 1,
-          textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+          textShadow: '0 1px 4px rgba(0,0,0,0.9)',
         }}
       >
         {slotNum}
@@ -509,33 +572,34 @@ function CameraSlot({
           style={{
             position: 'absolute',
             bottom: 0, left: 0, right: 0,
-            background: 'linear-gradient(transparent, rgba(0,0,0,0.9))',
-            padding: '24px 10px 8px',
+            background: 'linear-gradient(transparent, rgba(0,0,0,0.92))',
+            padding: '32px 14px 12px',
             display: 'flex',
             alignItems: 'flex-end',
             justifyContent: 'space-between',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div
               style={{
-                width: '6px', height: '6px',
+                width: '8px', height: '8px',
                 borderRadius: '50%',
                 background: slot.connected ? '#10B981' : '#374151',
+                flexShrink: 0,
               }}
             />
             <span
               style={{
-                fontSize: '13px',
-                fontWeight: 600,
+                fontSize: '17px',
+                fontWeight: 700,
                 color: 'white',
-                textShadow: '0 1px 4px rgba(0,0,0,0.8)',
+                textShadow: '0 1px 6px rgba(0,0,0,0.9)',
               }}
             >
               {slot.displayName}
             </span>
             {slot.submitted && (
-              <span style={{ fontSize: '11px', color: '#10B981' }}>✓</span>
+              <span style={{ fontSize: '14px', color: '#10B981' }}>✓</span>
             )}
           </div>
           {score !== null && score > 0 && (
@@ -545,7 +609,7 @@ function CameraSlot({
               transition={{ duration: 0.4 }}
               style={{
                 fontFamily: "'Bebas Neue'",
-                fontSize: '1.4rem',
+                fontSize: '1.8rem',
                 background: 'linear-gradient(135deg, #F59E0B, #F97316)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
@@ -565,7 +629,7 @@ function CameraSlot({
             inset: 0,
             border: '2px solid rgba(124,58,237,0.5)',
             pointerEvents: 'none',
-            boxShadow: 'inset 0 0 20px rgba(124,58,237,0.1)',
+            boxShadow: 'inset 0 0 24px rgba(124,58,237,0.12)',
           }}
         />
       )}

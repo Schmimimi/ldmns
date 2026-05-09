@@ -17,6 +17,8 @@ export default function AdminPanel() {
   const [pointsInput, setPointsInput] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const [hostVdoInput, setHostVdoInput] = useState('');
+  const [hostVdoSaved, setHostVdoSaved] = useState(false);
 
   // Auth
   useEffect(() => {
@@ -42,7 +44,10 @@ export default function AdminPanel() {
     if (gameState?.whitelist) {
       setWhitelist(gameState.whitelist.join('\n'));
     }
-  }, [gameState?.round?.taskA, gameState?.round?.taskB]);
+    if (gameState?.hostVdoId != null) {
+      setHostVdoInput(gameState.hostVdoId);
+    }
+  }, [gameState?.round?.taskA, gameState?.round?.taskB, gameState?.hostVdoId]);
 
   const emit = (ev: string, data?: any) => socket.emit(ev, data);
 
@@ -89,6 +94,12 @@ export default function AdminPanel() {
     const list = whitelist.split('\n').map(s => s.trim().toLowerCase()).filter(Boolean);
     emit('admin_set_whitelist', { whitelist: list });
     flash('Whitelist gespeichert');
+  };
+
+  const handleSaveHostVdo = () => {
+    emit('admin_set_host_vdo', { vdoId: hostVdoInput.trim() });
+    setHostVdoSaved(true);
+    setTimeout(() => setHostVdoSaved(false), 2000);
   };
 
   if (!adminAuthed) {
@@ -239,6 +250,36 @@ export default function AdminPanel() {
             </button>
           </Section>
 
+          {/* Host Camera */}
+          <Section title="Host-Kamera (VDO.Ninja)">
+            {gameState?.hostVdoId && (
+              <div style={{ width: '100%', height: '90px', borderRadius: '8px', overflow: 'hidden', marginBottom: '8px', background: '#0a0a0f' }}>
+                <iframe
+                  src={`https://vdo.ninja/?view=${encodeURIComponent(gameState.hostVdoId)}&noaudio&width=320&height=180`}
+                  allow="camera;microphone"
+                  style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                />
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={hostVdoInput}
+                onChange={e => setHostVdoInput(e.target.value)}
+                placeholder="Host Push-Name"
+                className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-purple-500/60 transition-colors"
+              />
+              <button
+                onClick={handleSaveHostVdo}
+                disabled={!hostVdoInput.trim()}
+                className="px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-40"
+                style={{ background: hostVdoSaved ? '#10B981' : 'var(--purple)', color: 'white', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+              >
+                {hostVdoSaved ? '✓' : 'OK'}
+              </button>
+            </div>
+          </Section>
+
           {/* Danger zone */}
           <Section title="Reset">
             <div className="flex flex-col gap-2">
@@ -333,10 +374,10 @@ export default function AdminPanel() {
           {/* Player slots */}
           <div className="glass rounded-2xl p-5">
             <div className="text-xs uppercase tracking-widest text-gray-500 mb-4">
-              Spieler ({activePlayers.length}/6)
+              Spieler ({activePlayers.length}/4)
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {Array.from({ length: 6 }, (_, i) => i + 1).map(slotNum => {
+              {Array.from({ length: 4 }, (_, i) => i + 1).map(slotNum => {
                 const slot = slots[String(slotNum)] as SlotData | null;
                 const role = slot ? round?.roles?.[slot.twitchId] : null;
                 const score = slot ? (scores[slot.twitchId] || 0) : 0;
@@ -375,6 +416,21 @@ export default function AdminPanel() {
                           </div>
                           <span className="score-badge text-xl">{score}</span>
                         </div>
+
+                        {/* Cam preview */}
+                        {slot.vdoId ? (
+                          <div style={{ width: '100%', height: '80px', borderRadius: '6px', overflow: 'hidden', marginBottom: '8px', background: '#0a0a0f' }}>
+                            <iframe
+                              src={`https://vdo.ninja/?view=${encodeURIComponent(slot.vdoId)}&noaudio&width=320&height=180`}
+                              allow="camera;microphone"
+                              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                            />
+                          </div>
+                        ) : (
+                          <div style={{ width: '100%', height: '40px', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span className="text-xs text-gray-700">Kein VDO-Link</span>
+                          </div>
+                        )}
 
                         {/* Quick points */}
                         <div className="flex gap-1 mb-2 flex-wrap">
@@ -462,8 +518,8 @@ export default function AdminPanel() {
           {phase === 'REVEAL' && (
             <div className="glass rounded-2xl p-5">
               <div className="text-xs uppercase tracking-widest text-gray-500 mb-4">Eingereichte Zeichnungen</div>
-              <div className="grid grid-cols-3 gap-3">
-                {Array.from({ length: 6 }, (_, i) => i + 1).map(slotNum => {
+              <div className="grid grid-cols-2 gap-3">
+                {Array.from({ length: 4 }, (_, i) => i + 1).map(slotNum => {
                   const slot = slots[String(slotNum)] as SlotData | null;
                   if (!slot?.drawing) return null;
                   const isRevealed = revealedSlots.includes(slotNum);

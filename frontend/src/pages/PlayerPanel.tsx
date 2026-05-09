@@ -11,6 +11,9 @@ const PALETTE = [
 ];
 const SIZES = [2, 5, 10, 20];
 
+const VDO_BASE = 'https://vdo.ninja';
+const VDO_PARAMS = '&noaudio&width=1280&height=720&framerate=30';
+
 export default function PlayerPanel() {
   const navigate = useNavigate();
   const { twitchUser, gameState, myTask, myRole, connected } = useStore();
@@ -41,9 +44,17 @@ export default function PlayerPanel() {
     }
   }, [gameState?.phase]);
 
-  // Reset submitted state when round resets
+  // Reset submitted state AND clear canvas when round starts
   useEffect(() => {
-    if (gameState?.phase === 'DRAWING') setSubmitted(false);
+    if (gameState?.phase === 'DRAWING') {
+      setSubmitted(false);
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#111118';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
   }, [gameState?.phase]);
 
   // Timer countdown
@@ -163,6 +174,10 @@ export default function PlayerPanel() {
   const scores = gameState?.scores || {};
   const myScore = twitchUser ? scores[twitchUser.id] || 0 : 0;
 
+  const vdoUrl = vdoId.trim()
+    ? `${VDO_BASE}/?view=${encodeURIComponent(vdoId.trim())}${VDO_PARAMS}`
+    : null;
+
   return (
     <div className="min-h-screen flex flex-col pb-6" style={{ background: 'var(--dark)' }}>
       {/* Header */}
@@ -265,7 +280,7 @@ export default function PlayerPanel() {
           )}
         </AnimatePresence>
 
-        {/* Drawing canvas */}
+        {/* Drawing canvas + VDO camera side by side */}
         {phase === 'DRAWING' && (
           <div className="glass rounded-2xl p-4">
             <div className="flex items-center justify-between mb-3">
@@ -277,39 +292,108 @@ export default function PlayerPanel() {
               )}
             </div>
 
-            {/* Canvas */}
-            <div className="relative" style={{ borderRadius: '10px', overflow: 'hidden' }}>
-              <canvas
-                ref={canvasRef}
-                width={600}
-                height={400}
+            {/* Side-by-side: canvas left, cam right */}
+            <div className="flex gap-3">
+              {/* Canvas */}
+              <div className="relative flex-1" style={{ borderRadius: '10px', overflow: 'hidden' }}>
+                <canvas
+                  ref={canvasRef}
+                  width={480}
+                  height={320}
+                  style={{
+                    width: '100%',
+                    display: 'block',
+                    cursor: submitted ? 'default' : isEraser ? 'cell' : 'crosshair',
+                    touchAction: 'none',
+                    opacity: submitted ? 0.6 : 1,
+                    transition: 'opacity 0.3s',
+                  }}
+                  onMouseDown={startDraw}
+                  onMouseMove={draw}
+                  onMouseUp={stopDraw}
+                  onMouseLeave={stopDraw}
+                  onTouchStart={startDraw}
+                  onTouchMove={draw}
+                  onTouchEnd={stopDraw}
+                />
+                {submitted && (
+                  <div
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}
+                  >
+                    <div className="text-center">
+                      <div className="text-4xl mb-2">✓</div>
+                      <div className="font-semibold text-green-400">Abgegeben!</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* VDO.Ninja camera preview */}
+              <div
                 style={{
-                  width: '100%',
-                  display: 'block',
-                  cursor: submitted ? 'default' : isEraser ? 'cell' : 'crosshair',
-                  touchAction: 'none',
-                  opacity: submitted ? 0.6 : 1,
-                  transition: 'opacity 0.3s',
+                  width: '200px',
+                  flexShrink: 0,
+                  borderRadius: '10px',
+                  overflow: 'hidden',
+                  background: '#0a0a0f',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }}
-                onMouseDown={startDraw}
-                onMouseMove={draw}
-                onMouseUp={stopDraw}
-                onMouseLeave={stopDraw}
-                onTouchStart={startDraw}
-                onTouchMove={draw}
-                onTouchEnd={stopDraw}
-              />
-              {submitted && (
-                <div
-                  className="absolute inset-0 flex items-center justify-center"
-                  style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}
-                >
-                  <div className="text-center">
-                    <div className="text-4xl mb-2">✓</div>
-                    <div className="font-semibold text-green-400">Abgegeben!</div>
+              >
+                <div style={{ flex: 1, position: 'relative', minHeight: '130px' }}>
+                  {vdoUrl ? (
+                    <iframe
+                      key={vdoUrl}
+                      src={vdoUrl}
+                      allow="camera;microphone;fullscreen;picture-in-picture;display-capture"
+                      style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        color: '#374151',
+                        fontSize: '12px',
+                        textAlign: 'center',
+                        padding: '8px',
+                      }}
+                    >
+                      <div style={{ fontSize: '28px' }}>📷</div>
+                      <div>Kein VDO-Link</div>
+                    </div>
+                  )}
+                </div>
+                {/* VDO ID input inside cam panel */}
+                <div style={{ padding: '8px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div className="text-xs text-gray-600 mb-1.5">VDO.Ninja ID</div>
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={vdoId}
+                      onChange={(e) => setVdoId(e.target.value)}
+                      placeholder="Push-Name"
+                      className="flex-1 bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder-gray-700 outline-none focus:border-purple-500/60 transition-colors"
+                      style={{ minWidth: 0 }}
+                    />
+                    <button
+                      onClick={saveVdoId}
+                      disabled={!vdoId.trim()}
+                      className="px-2 py-1 rounded text-xs font-medium disabled:opacity-40"
+                      style={{ background: vdoSaved ? '#10B981' : 'var(--purple)', color: 'white', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                    >
+                      {vdoSaved ? '✓' : 'OK'}
+                    </button>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Toolbar */}
@@ -393,7 +477,7 @@ export default function PlayerPanel() {
                     cursor: 'pointer',
                   }}
                 >
-                  Alles löschen
+                  Löschen
                 </button>
 
                 <motion.button
@@ -419,30 +503,52 @@ export default function PlayerPanel() {
           </div>
         )}
 
-        {/* VDO.Ninja setup */}
-        <div className="glass rounded-2xl p-4">
-          <div className="text-xs uppercase tracking-widest text-gray-500 mb-3">VDO.Ninja Kamera</div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={vdoId}
-              onChange={(e) => setVdoId(e.target.value)}
-              placeholder="Dein VDO.Ninja Push-Name"
-              className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-purple-500/60 transition-colors"
-            />
-            <button
-              onClick={saveVdoId}
-              disabled={!vdoId.trim()}
-              className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40 transition-all"
-              style={{ background: vdoSaved ? '#10B981' : 'var(--purple)', color: 'white', border: 'none', cursor: 'pointer' }}
-            >
-              {vdoSaved ? '✓' : 'Speichern'}
-            </button>
+        {/* VDO setup section when NOT in drawing phase */}
+        {phase !== 'DRAWING' && (
+          <div className="glass rounded-2xl p-4">
+            <div className="text-xs uppercase tracking-widest text-gray-500 mb-3">VDO.Ninja Kamera</div>
+            {vdoUrl && (
+              <div
+                style={{
+                  width: '100%',
+                  height: '180px',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  background: '#0a0a0f',
+                  marginBottom: '10px',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                }}
+              >
+                <iframe
+                  key={vdoUrl}
+                  src={vdoUrl}
+                  allow="camera;microphone;fullscreen;picture-in-picture;display-capture"
+                  style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                />
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={vdoId}
+                onChange={(e) => setVdoId(e.target.value)}
+                placeholder="Dein VDO.Ninja Push-Name"
+                className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-purple-500/60 transition-colors"
+              />
+              <button
+                onClick={saveVdoId}
+                disabled={!vdoId.trim()}
+                className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40 transition-all"
+                style={{ background: vdoSaved ? '#10B981' : 'var(--purple)', color: 'white', border: 'none', cursor: 'pointer' }}
+              >
+                {vdoSaved ? '✓' : 'Speichern'}
+              </button>
+            </div>
+            <div className="text-xs text-gray-600 mt-2">
+              Geh auf vdo.ninja und erstell einen Push-Link. Den Namen hier eingeben.
+            </div>
           </div>
-          <div className="text-xs text-gray-600 mt-2">
-            Geh auf vdo.ninja und erstell einen Push-Link. Den Namen hier eingeben.
-          </div>
-        </div>
+        )}
 
         {/* Error */}
         {error && (
