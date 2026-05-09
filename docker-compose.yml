@@ -28,8 +28,8 @@ services:
         # nginx.conf proxied /api und /socket.io intern zum backend Container
         - VITE_BACKEND_URL=${FRONTEND_URL}
     restart: unless-stopped
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     networks:
       - ldmns
     depends_on:
