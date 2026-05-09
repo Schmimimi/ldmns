@@ -1,12 +1,50 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store';
 import { getSocket, useOverlaySocket } from '../hooks/useSocket';
+import { useCamBroadcaster, useCamViewer } from '../hooks/useWebRTC';
 import type { SlotData } from '../types';
+
+// 16:9 video component
+function CamPreview({ stream, style }: { stream: MediaStream | null | undefined; style?: React.CSSProperties }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.srcObject = stream ?? null;
+      if (stream) ref.current.play().catch(() => {});
+    }
+  }, [stream]);
+  return (
+    <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%', background: '#0a0a0f', borderRadius: 6, overflow: 'hidden', ...style }}>
+      <video ref={ref} autoPlay playsInline muted
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+      {!stream && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontSize: 20 }}>
+          📷
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AdminPanel() {
   const { gameState, adminAuthed, setAdminAuthed, connected } = useStore();
   const socket = useOverlaySocket();
+
+  // Host camera (admin broadcasts as 'host' slot)
+  const {
+    localStream: hostStream,
+    cameras: hostCameras,
+    selectedDeviceId: hostCamId,
+    setSelectedDeviceId: setHostCamId,
+    startCamera: startHostCam,
+    stopCamera: stopHostCam,
+    active: hostCamActive,
+    camError: hostCamError,
+  } = useCamBroadcaster('host');
+
+  // Player camera feeds (admin views all 4 slots)
+  const playerStreams = useCamViewer(['1', '2', '3', '4']);
 
   const [password, setPassword] = useState('');
   const [taskA, setTaskA] = useState('');
@@ -17,8 +55,6 @@ export default function AdminPanel() {
   const [pointsInput, setPointsInput] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
-  const [hostVdoInput, setHostVdoInput] = useState('');
-  const [hostVdoSaved, setHostVdoSaved] = useState(false);
 
   // Auth
   useEffect(() => {
@@ -44,10 +80,7 @@ export default function AdminPanel() {
     if (gameState?.whitelist) {
       setWhitelist(gameState.whitelist.join('\n'));
     }
-    if (gameState?.hostVdoId != null) {
-      setHostVdoInput(gameState.hostVdoId);
-    }
-  }, [gameState?.round?.taskA, gameState?.round?.taskB, gameState?.hostVdoId]);
+  }, [gameState?.round?.taskA, gameState?.round?.taskB]);
 
   const emit = (ev: string, data?: any) => socket.emit(ev, data);
 
@@ -96,11 +129,6 @@ export default function AdminPanel() {
     flash('Whitelist gespeichert');
   };
 
-  const handleSaveHostVdo = () => {
-    emit('admin_set_host_vdo', { vdoId: hostVdoInput.trim() });
-    setHostVdoSaved(true);
-    setTimeout(() => setHostVdoSaved(false), 2000);
-  };
 
   if (!adminAuthed) {
     return (
@@ -251,33 +279,34 @@ export default function AdminPanel() {
           </Section>
 
           {/* Host Camera */}
-          <Section title="Host-Kamera (VDO.Ninja)">
-            {gameState?.hostVdoId && (
-              <div style={{ width: '100%', height: '90px', borderRadius: '8px', overflow: 'hidden', marginBottom: '8px', background: '#0a0a0f' }}>
-                <iframe
-                  src={`https://vdo.ninja/?view=${encodeURIComponent(gameState.hostVdoId)}&noaudio&width=320&height=180`}
-                  allow="camera;microphone"
-                  style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-                />
-              </div>
-            )}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={hostVdoInput}
-                onChange={e => setHostVdoInput(e.target.value)}
-                placeholder="Host Push-Name"
-                className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-purple-500/60 transition-colors"
-              />
-              <button
-                onClick={handleSaveHostVdo}
-                disabled={!hostVdoInput.trim()}
-                className="px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-40"
-                style={{ background: hostVdoSaved ? '#10B981' : 'var(--purple)', color: 'white', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+          <Section title="Host-Kamera">
+            <CamPreview stream={hostStream} style={{ marginBottom: 8 }} />
+            {hostCameras.length > 1 && (
+              <select
+                value={hostCamId}
+                onChange={e => setHostCamId(e.target.value)}
+                className="w-full mb-2 bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none"
               >
-                {hostVdoSaved ? '✓' : 'OK'}
-              </button>
-            </div>
+                {hostCameras.map((cam, i) => (
+                  <option key={cam.deviceId} value={cam.deviceId}>
+                    {cam.label || `Kamera ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              onClick={() => hostCamActive ? stopHostCam() : startHostCam(hostCamId || undefined)}
+              className="w-full py-2 rounded-lg text-sm font-medium"
+              style={{
+                background: hostCamActive ? 'rgba(239,68,68,0.2)' : 'linear-gradient(135deg, var(--purple), var(--pink))',
+                color: hostCamActive ? '#EF4444' : 'white',
+                border: hostCamActive ? '1px solid rgba(239,68,68,0.4)' : 'none',
+                cursor: 'pointer',
+              }}
+            >
+              {hostCamActive ? '⏹ Kamera aus' : '📷 Host-Kamera starten'}
+            </button>
+            {hostCamError && <div className="text-xs text-red-400 mt-1">{hostCamError}</div>}
           </Section>
 
           {/* Danger zone */}
@@ -342,7 +371,7 @@ export default function AdminPanel() {
               <div>
                 <label className="text-xs text-gray-400 mb-2 block">Anzahl Imposter</label>
                 <div className="flex gap-2">
-                  {[1, 2, 3].map(n => (
+                  {[1, 2, 3, 4].map(n => (
                     <button
                       key={n}
                       onClick={() => setImposterCount(n)}
@@ -417,20 +446,11 @@ export default function AdminPanel() {
                           <span className="score-badge text-xl">{score}</span>
                         </div>
 
-                        {/* Cam preview */}
-                        {slot.vdoId ? (
-                          <div style={{ width: '100%', height: '80px', borderRadius: '6px', overflow: 'hidden', marginBottom: '8px', background: '#0a0a0f' }}>
-                            <iframe
-                              src={`https://vdo.ninja/?view=${encodeURIComponent(slot.vdoId)}&noaudio&width=320&height=180`}
-                              allow="camera;microphone"
-                              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-                            />
-                          </div>
-                        ) : (
-                          <div style={{ width: '100%', height: '40px', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <span className="text-xs text-gray-700">Kein VDO-Link</span>
-                          </div>
-                        )}
+                        {/* Cam preview via WebRTC */}
+                        <CamPreview
+                          stream={playerStreams[String(slotNum)]}
+                          style={{ marginBottom: 8 }}
+                        />
 
                         {/* Quick points */}
                         <div className="flex gap-1 mb-2 flex-wrap">
@@ -514,30 +534,53 @@ export default function AdminPanel() {
             </div>
           </div>
 
-          {/* Drawings preview */}
+          {/* Drawings preview with reveal buttons */}
           {phase === 'REVEAL' && (
             <div className="glass rounded-2xl p-5">
-              <div className="text-xs uppercase tracking-widest text-gray-500 mb-4">Eingereichte Zeichnungen</div>
+              <div className="text-xs uppercase tracking-widest text-gray-500 mb-4">Zeichnungen aufdecken</div>
               <div className="grid grid-cols-2 gap-3">
                 {Array.from({ length: 4 }, (_, i) => i + 1).map(slotNum => {
                   const slot = slots[String(slotNum)] as SlotData | null;
-                  if (!slot?.drawing) return null;
                   const isRevealed = revealedSlots.includes(slotNum);
-                  const role = round?.roles?.[slot.twitchId];
+                  const role = round?.roles?.[slot?.twitchId ?? ''];
                   return (
                     <div
                       key={slotNum}
                       className="rounded-xl overflow-hidden border"
                       style={{ borderColor: isRevealed ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.06)' }}
                     >
-                      <img src={slot.drawing} style={{ width: '100%', display: 'block' }} />
-                      <div className="p-2 flex items-center justify-between" style={{ background: 'rgba(0,0,0,0.5)' }}>
-                        <span className="text-xs text-gray-300">{slot.displayName}</span>
-                        {role && (
-                          <span className={`text-xs ${role === 'imposter' ? 'text-red-400' : 'text-cyan-400'}`}>
-                            {role === 'imposter' ? '🎭' : '✓'}
+                      {slot?.drawing ? (
+                        <img src={slot.drawing} style={{ width: '100%', display: 'block' }} />
+                      ) : (
+                        <div style={{ width: '100%', paddingTop: '66%', background: 'rgba(0,0,0,0.3)', position: 'relative' }}>
+                          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', fontSize: 12 }}>
+                            {slot ? 'Nicht abgegeben' : 'Leer'}
+                          </div>
+                        </div>
+                      )}
+                      <div className="p-2" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-gray-300 font-medium">
+                            {slot?.displayName ?? `Slot ${slotNum}`}
                           </span>
-                        )}
+                          {role && (
+                            <span className={`text-xs ${role === 'imposter' ? 'text-red-400' : 'text-cyan-400'}`}>
+                              {role === 'imposter' ? '🎭 Imp.' : '✓ Inn.'}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => isRevealed ? handleHide(slotNum) : handleReveal(slotNum)}
+                          className="w-full py-1 rounded text-xs font-medium transition-all"
+                          style={{
+                            background: isRevealed ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.5)',
+                            color: '#F59E0B',
+                            border: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {isRevealed ? '👁 Verstecken' : '👁 Aufdecken'}
+                        </button>
                       </div>
                     </div>
                   );

@@ -9,6 +9,9 @@ import {
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'admin123';
 
+// Persists across connections: slotId (string) → socketId
+const activeCameras = {};
+
 export function setupSocketHandlers(io) {
   const broadcast = () => io.emit('state_sync', getState());
 
@@ -17,6 +20,9 @@ export function setupSocketHandlers(io) {
 
     // Always send current state on connect
     socket.emit('state_sync', getState());
+
+    // Send current active cameras so viewer can request streams
+    socket.emit('cam_state', { cameras: activeCameras });
 
     // =====================
     // PLAYER EVENTS
@@ -291,6 +297,31 @@ export function setupSocketHandlers(io) {
     });
 
     // =====================
+    // WEBRTC SIGNALING
+    // =====================
+
+    // Broadcaster announces camera is live
+    socket.on('cam_start', ({ slotId }) => {
+      const key = String(slotId);
+      activeCameras[key] = socket.id;
+      socket.broadcast.emit('cam_available', { slotId: key, socketId: socket.id });
+    });
+
+    // Broadcaster stops camera
+    socket.on('cam_stop', ({ slotId }) => {
+      const key = String(slotId);
+      if (activeCameras[key] === socket.id) {
+        delete activeCameras[key];
+        socket.broadcast.emit('cam_unavailable', { slotId: key });
+      }
+    });
+
+    // Generic peer-to-peer relay (offer / answer / ICE)
+    socket.on('rtc', ({ to, data }) => {
+      io.to(to).emit('rtc', { from: socket.id, data });
+    });
+
+    // =====================
     // DISCONNECT
     // =====================
     socket.on('disconnect', () => {
@@ -302,6 +333,13 @@ export function setupSocketHandlers(io) {
           const slot = state.slots[String(slotNum)];
           if (slot) updateSlot(slotNum, { ...slot, connected: false, socketId: null });
           broadcast();
+        }
+      }
+      // Clean up any cameras this socket was broadcasting
+      for (const [slotId, socketId] of Object.entries(activeCameras)) {
+        if (socketId === socket.id) {
+          delete activeCameras[slotId];
+          socket.broadcast.emit('cam_unavailable', { slotId });
         }
       }
       console.log(`[-] ${socket.id}`);
