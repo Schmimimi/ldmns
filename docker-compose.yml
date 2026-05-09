@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - FRONTEND_URL=${FRONTEND_URL}
+      - TWITCH_CLIENT_ID=${TWITCH_CLIENT_ID}
+      - TWITCH_CLIENT_SECRET=${TWITCH_CLIENT_SECRET}
+      - TWITCH_REDIRECT_URI=${TWITCH_REDIRECT_URI}
+      - ADMIN_SECRET=${ADMIN_SECRET}
+    volumes:
+      - ldmns-state:/app/data
+    networks:
+      - ldmns
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_BACKEND_URL=${FRONTEND_URL}
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    networks:
+      - ldmns
+    depends_on:
+      - backend
+
+networks:
+  ldmns:
+    driver: bridge
+
+volumes:
+  ldmns-state:
